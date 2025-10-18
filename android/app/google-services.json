@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "616436705273",
+    "project_id": "onemanengine-9c23b",
+    "storage_bucket": "onemanengine-9c23b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:616436705273:android:d53b8230167f50c7f37f28",
+        "android_client_info": {
+          "package_name": "com.mycompany.onemanengine"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDbGZ0vvfk42SQ_pUeGwxZ_AS92lHq1lbU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
