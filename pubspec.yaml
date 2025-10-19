@@ -92,8 +92,9 @@ dependencies:
   cupertino_icons: ^1.0.0
 
 dependency_overrides:
-  http: 1.4.0
-  uuid: ^4.0.0
+  http: 1.1.0
+  uuid: ^4.4.0
+  collection: ^1.19.0
 
 dev_dependencies:
   flutter_lints: 4.0.0
@@ -149,5 +150,5 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
-dependency_overrides:
-  collection: ^1.19.0
+
+
