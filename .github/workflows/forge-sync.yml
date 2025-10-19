@@ -1,38 +1,31 @@
-name: Forge Sync Build
+name: Forge Auto Sync
+
 on:
+  schedule:
+    - cron: '*/15 * * * *'   # every 15 minutes
   workflow_dispatch:
-  push:
-    branches:
-      - main
   repository_dispatch:
-    types: [forge-build-complete]
+    types: [forge_sync]
 
 jobs:
   sync:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up Node
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Install Firebase Tools
-        run: npm install -g firebase-tools
-
-      - name: Build FlutterFlow Web
+      - name: Pull latest build manifest
         run: |
-          echo "Building front-end from vault manifest..."
-          ls -R firebase
-          firebase deploy --only hosting
+          mkdir -p forge/sync
+          curl -L "https://firebasestorage.googleapis.com/v0/b/onemanengine-9c23b.appspot.com/o/forge%2Fv2%2FREADY.txt?alt=media" -o forge/sync/READY.txt
+          echo "✅ Synced latest Forge marker"
 
-      - name: Commit build confirmation
+      - name: Auto trigger Firebase Deploy
         run: |
-          git config --global user.name "Forge Auto Builder"
-          git config --global user.email "forge@onemanengine.ai"
-          git add .
-          git commit -m "Forge build pushed from vault"
-          git push
+          npm install -g firebase-tools
+          firebase deploy --only hosting --project onemanengine-9c23b
