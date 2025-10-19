@@ -36,11 +36,11 @@ jobs:
       - name: Write Firebase service account key
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > $GITHUB_WORKSPACE/firebase_key.json
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$GITHUB_WORKSPACE/firebase_key.json" >> $GITHUB_ENV
 
       - name: Deploy to Firebase Hosting
         env:
-          GOOGLE_APPLICATION_CREDENTIALS: $GITHUB_WORKSPACE/firebase_key.json
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/firebase_key.json
           PROJECT_ID: ${{ secrets.PROJECT_ID }}
         run: |
-          firebase use $PROJECT_ID --token "$(firebase login:ci --no-localhost)"
           firebase deploy --only hosting --project $PROJECT_ID --non-interactive
