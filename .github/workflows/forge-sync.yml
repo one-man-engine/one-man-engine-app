@@ -1,0 +1,38 @@
+name: Forge Sync Build
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+  repository_dispatch:
+    types: [forge-build-complete]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Set up Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install Firebase Tools
+        run: npm install -g firebase-tools
+
+      - name: Build FlutterFlow Web
+        run: |
+          echo "Building front-end from vault manifest..."
+          ls -R firebase
+          firebase deploy --only hosting
+
+      - name: Commit build confirmation
+        run: |
+          git config --global user.name "Forge Auto Builder"
+          git config --global user.email "forge@onemanengine.ai"
+          git add .
+          git commit -m "Forge build pushed from vault"
+          git push
