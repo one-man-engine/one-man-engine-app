@@ -2,66 +2,73 @@ name: Forge Auto Sync
 
 on:
   schedule:
-    - cron: '*/15 * * * *'   # every 15 minutes
+    - cron: '*/15 * * * *'     # every 15 minutes
   workflow_dispatch:
   repository_dispatch:
     types: [forge_sync]
 
 jobs:
-  build-and-deploy:
+  sync:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repo
+      - name: Checkout repo (we won't use its web, just need a workspace)
         uses: actions/checkout@v4
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
+      - name: Set up Node (for Firebase CLI)
+        uses: actions/setup-node@v4
         with:
-          channel: 'stable'
-
-      - name: Show Flutter/Dart versions
-        run: |
-          flutter --version
-          dart --version
-
-      - name: Flutter clean
-        run: flutter clean
-
-      - name: Flutter pub get
-        run: flutter pub get
-
-      - name: Build Flutter web (release)
-        run: flutter build web --release
+          node-version: '20'
 
       - name: Install Firebase CLI
-        run: npm install -g firebase-tools
+        run: npm i -g firebase-tools
 
-      # Write your service account key from a GitHub Secret
-      # (Settings → Secrets → Actions → FIREBASE_SERVICE_ACCOUNT)
-      - name: Write Firebase service account key
-        run: |
-          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > $GITHUB_WORKSPACE/firebase-key.json
+      # --- auth to Google so we can use gsutil to pull from your bucket ---
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: '>= 463.0.0'
 
-      # Minimal hosting config that points to the Flutter web build
-      - name: Write firebase.json
+      - name: Authenticate gcloud with service account
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ONEMANENGINE_9C23B }}
+
+      - name: Enable gsutil
+        run: gcloud components install gsutil --quiet
+
+      # --- pull LATEST vault build marker + web.zip ---
+      - name: Read latest stamp
         run: |
-          cat > $GITHUB_WORKSPACE/firebase.json << 'EOF'
+          mkdir -p forge/sync
+          gsutil cp gs://onemanengine-9c23b.appspot.com/exports/latest.txt forge/sync/latest.txt
+          echo "STAMP=$(cat forge/sync/latest.txt)" >> $GITHUB_ENV
+
+      - name: Download web.zip for ${{ env.STAMP }}
+        run: |
+          gsutil cp gs://onemanengine-9c23b.appspot.com/exports/${STAMP}/web.zip forge/sync/web.zip
+          ls -l forge/sync
+
+      - name: Unzip into web/
+        run: |
+          mkdir -p web
+          unzip -o forge/sync/web.zip -d web
+          ls -la web
+
+      # --- deploy that web/ to Firebase Hosting ---
+      - name: Deploy to Firebase Hosting (vault build)
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
+        run: |
+          # write firebase.json that points "public" to ./web
+          cat > firebase.json <<'EOF'
           {
             "hosting": {
-              "public": "build/web",
+              "public": "web",
               "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
               "cleanUrls": true,
-              "rewrites": [{"source": "**", "destination": "/index.html"}],
-              "headers": [
-                {"source": "index.html", "headers": [{"key": "Cache-Control", "value": "no-cache"}]}
-              ]
+              "rewrites": [{"source": "**", "destination": "/index.html"}]
             }
           }
           EOF
 
-      - name: Deploy to Firebase Hosting
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/firebase-key.json
-        run: |
           firebase deploy --only hosting --project onemanengine-9c23b --non-interactive
