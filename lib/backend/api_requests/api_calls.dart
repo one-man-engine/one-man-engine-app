@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:typed_data';
+import '../schema/structs/index.dart';
 
 import 'package:flutter/foundation.dart';
 
@@ -36,7 +38,7 @@ class SendToDrewCall {
     );
   }
 
-  static dynamic reply(dynamic response) => getJsonField(
+  static dynamic? reply(dynamic response) => getJsonField(
         response,
         r'''$''',
       );
