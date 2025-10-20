@@ -1,74 +1,82 @@
 name: Forge Auto Sync
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'     # every 15 minutes
-  workflow_dispatch:
-  repository_dispatch:
-    types: [forge_sync]
+  schedule:
+    - cron: '*/15 * * * *'   # every 15 minutes
+  workflow_dispatch:         # run by hand from the Actions tab
+  repository_dispatch:
+    types: [forge_sync]      # optional external trigger
 
 jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repo (we won't use its web, just need a workspace)
-        uses: actions/checkout@v4
+  sync:
+    runs-on: ubuntu-latest
+    env:
+      PROJECT_ID: ${{ secrets.PROJECT_ID }}
 
-      - name: Set up Node (for Firebase CLI)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-      - name: Install Firebase CLI
-        run: npm i -g firebase-tools
+      - name: Set up Node (for Firebase CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
-      # --- auth to Google so we can use gsutil to pull from your bucket ---
-      - name: Install gcloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          version: '>= 463.0.0'
+      - name: Install Firebase CLI
+        run: npm i -g firebase-tools
 
-      - name: Authenticate gcloud with service account
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_ONEMANENGINE_9C23B }}
+      # ---- gcloud so we can use gsutil to read from your bucket ----
+      - name: Install gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          version: '>= 463.0.0'
 
-      - name: Enable gsutil
-        run: gcloud components install gsutil --quiet
+      - name: Authenticate gcloud with service account
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
-      # --- pull LATEST vault build marker + web.zip ---
-      - name: Read latest stamp
-        run: |
-          mkdir -p forge/sync
-          gsutil cp gs://onemanengine-9c23b.appspot.com/exports/latest.txt forge/sync/latest.txt
-          echo "STAMP=$(cat forge/sync/latest.txt)" >> $GITHUB_ENV
+      - name: Enable gsutil
+        run: gcloud components install gsutil --quiet
 
-      - name: Download web.zip for ${{ env.STAMP }}
-        run: |
-          gsutil cp gs://onemanengine-9c23b.appspot.com/exports/${STAMP}/web.zip forge/sync/web.zip
-          ls -l forge/sync
+      # ---- pull the latest export stamp then download the web bundle ----
+      - name: Fetch latest stamp from bucket
+        id: latest
+        shell: bash
+        env:
+          BUCKET: ${{ secrets.PROJECT_ID }}.appspot.com
+        run: |
+          set -euo pipefail
+          mkdir -p forge/sync build/web
+          if gsutil -q stat gs://$BUCKET/exports/latest.txt; then
+            gsutil cp gs://$BUCKET/exports/latest.txt forge/sync/latest.txt
+            STAMP=$(tr -d '\r\n' < forge/sync/latest.txt)
+            echo "stamp=$STAMP" >> "$GITHUB_OUTPUT"
+            echo "Found export stamp: $STAMP"
+          else
+            echo "No latest.txt found in gs://$BUCKET/exports/."
+            exit 78   # neutral (no-op) exit so the job is not a failure
+          fi
 
-      - name: Unzip into web/
-        run: |
-          mkdir -p web
-          unzip -o forge/sync/web.zip -d web
-          ls -la web
+      - name: Download and unpack web bundle
+        if: steps.latest.outputs.stamp != ''
+        shell: bash
+        env:
+          BUCKET: ${{ secrets.PROJECT_ID }}.appspot.com
+        run: |
+          set -euo pipefail
+          gsutil cp gs://$BUCKET/exports/${{ steps.latest.outputs.stamp }}/web.zip forge/sync/web.zip
+          sudo apt-get update && sudo apt-get install -y unzip
+          unzip -o forge/sync/web.zip -d build/web
 
-      # --- deploy that web/ to Firebase Hosting ---
-      - name: Deploy to Firebase Hosting (vault build)
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ steps.auth.outputs.credentials_file_path }}
-        run: |
-          # write firebase.json that points "public" to ./web
-          cat > firebase.json <<'EOF'
-          {
-            "hosting": {
-              "public": "web",
-              "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-              "cleanUrls": true,
-              "rewrites": [{"source": "**", "destination": "/index.html"}]
-            }
-          }
-          EOF
+      # ---- give Firebase CLI credentials via ADC and deploy ----
+      - name: Write Firebase service account file
+        shell: bash
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/firebase.json"
 
-          firebase deploy --only hosting --project onemanengine-9c23b --non-interactive
+      - name: Deploy to Firebase Hosting
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase.json
+        run: |
+          firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
