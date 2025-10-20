@@ -19,13 +19,13 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Pull latest build manifest
-        run: |
-          mkdir -p forge/sync
-          curl -L "https://firebasestorage.googleapis.com/v0/b/onemanengine-9c23b.appspot.com/o/forge%2Fv2%2FREADY.txt?alt=media" -o forge/sync/READY.txt
-          echo "✅ Synced latest Forge marker"
+      - # (Optional marker so we can wire the vault later)
+      - name: Pull latest build marker
+        run: |
+          mkdir -p forge/sync
+          gsutil cp gs://onemanengine-9c23b.appspot.com/forge/v2/READY.txt forge/sync/READY.txt || echo "No marker yet"
 
-      - name: Auto trigger Firebase Deploy
-        run: |
-          npm install -g firebase-tools
-          firebase deploy --only hosting --project onemanengine-9c23b
+      - name: Deploy web
+        run: |
+          npm i -g firebase-tools
+          firebase deploy --only hosting --project onemanengine-9c23b --non-interactive
