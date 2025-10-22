@@ -1,82 +1,41 @@
-name: Forge Auto Sync
+name: Forge v2 Pipeline
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'   # every 15 minutes
-  workflow_dispatch:         # run by hand from the Actions tab
-  repository_dispatch:
-    types: [forge_sync]      # optional external trigger
+  # let the worker trigger us
+  repository_dispatch:
+    types: [forge_v2_complete]
+  # optional: let you run it by hand from Actions tab for testing
+  workflow_dispatch:
 
 jobs:
-  sync:
-    runs-on: ubuntu-latest
-    env:
-      PROJECT_ID: ${{ secrets.PROJECT_ID }}
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - name: Show payload
+        run: |
+          echo "Job:      ${{ github.event.client_payload.jobId }}"
+          echo "Version:  ${{ github.event.client_payload.version }}"
+          echo "Manifest: ${{ github.event.client_payload.payloadHttpUrl }}"
 
-      - name: Set up Node (for Firebase CLI)
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
+      - name: Prepare latest folder
+        run: mkdir -p public/forge/latest
 
-      - name: Install Firebase CLI
-        run: npm i -g firebase-tools
+      - name: Download manifest.json
+        run: |
+          curl -L -o public/forge/latest/manifest.json "${{ github.event.client_payload.payloadHttpUrl }}"
+          echo "Downloaded manifest:"
+          cat public/forge/latest/manifest.json
 
-      # ---- gcloud so we can use gsutil to read from your bucket ----
-      - name: Install gcloud SDK
-        uses: google-github-actions/setup-gcloud@v2
-        with:
-          version: '>= 463.0.0'
+      - name: Verify viewer exists
+        run: test -f public/forge/viewer.html
 
-      - name: Authenticate gcloud with service account
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-
-      - name: Enable gsutil
-        run: gcloud components install gsutil --quiet
-
-      # ---- pull the latest export stamp then download the web bundle ----
-      - name: Fetch latest stamp from bucket
-        id: latest
-        shell: bash
-        env:
-          BUCKET: ${{ secrets.PROJECT_ID }}.appspot.com
-        run: |
-          set -euo pipefail
-          mkdir -p forge/sync build/web
-          if gsutil -q stat gs://$BUCKET/exports/latest.txt; then
-            gsutil cp gs://$BUCKET/exports/latest.txt forge/sync/latest.txt
-            STAMP=$(tr -d '\r\n' < forge/sync/latest.txt)
-            echo "stamp=$STAMP" >> "$GITHUB_OUTPUT"
-            echo "Found export stamp: $STAMP"
-          else
-            echo "No latest.txt found in gs://$BUCKET/exports/."
-            exit 78   # neutral (no-op) exit so the job is not a failure
-          fi
-
-      - name: Download and unpack web bundle
-        if: steps.latest.outputs.stamp != ''
-        shell: bash
-        env:
-          BUCKET: ${{ secrets.PROJECT_ID }}.appspot.com
-        run: |
-          set -euo pipefail
-          gsutil cp gs://$BUCKET/exports/${{ steps.latest.outputs.stamp }}/web.zip forge/sync/web.zip
-          sudo apt-get update && sudo apt-get install -y unzip
-          unzip -o forge/sync/web.zip -d build/web
-
-      # ---- give Firebase CLI credentials via ADC and deploy ----
-      - name: Write Firebase service account file
-        shell: bash
-        run: |
-          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' > "$RUNNER_TEMP/firebase.json"
-
-      - name: Deploy to Firebase Hosting
-        env:
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase.json
-        run: |
-          firebase deploy --only hosting --project "$PROJECT_ID" --non-interactive
+      - name: Deploy to Firebase Hosting (live)
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: "${{ secrets.GITHUB_TOKEN }}"
+          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}"
+          projectId: "${{ secrets.PROJECT_ID }}"
+          channelId: live
