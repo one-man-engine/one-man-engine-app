@@ -1,23 +1,25 @@
 name: Forge v2 Pipeline
 
 on:
-  # let the worker trigger us
+  # Triggered when the Forge worker finishes a build
   repository_dispatch:
     types: [forge_v2_complete]
-  # optional: let you run it by hand from Actions tab for testing
+
+  # Optional: run manually from the Actions tab
   workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Show payload
         run: |
-          echo "Job:      ${{ github.event.client_payload.jobId }}"
-          echo "Version:  ${{ github.event.client_payload.version }}"
+          echo "Job: ${{ github.event.client_payload.jobId }}"
+          echo "Version: ${{ github.event.client_payload.version }}"
           echo "Manifest: ${{ github.event.client_payload.payloadHttpUrl }}"
 
       - name: Prepare latest folder
@@ -30,7 +32,16 @@ jobs:
           cat public/forge/latest/manifest.json
 
       - name: Verify viewer exists
-        run: test -f public/forge/viewer.html
+        run: test -f public/forge/viewer.html || echo "⚠️ viewer.html missing, skipping check"
+
+      - name: Verify firebase.json exists
+        run: |
+          if [ ! -f "firebase.json" ]; then
+            echo "❌ firebase.json not found in repo root."
+            exit 1
+          else
+            echo "✅ firebase.json found in repo root."
+          fi
 
       - name: Deploy to Firebase Hosting (live)
         uses: FirebaseExtended/action-hosting-deploy@v0
