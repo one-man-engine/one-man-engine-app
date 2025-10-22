@@ -1,4 +1,5 @@
 name: Forge v2 Pipeline
+
 on:
   repository_dispatch:
     types: [forge_v2_complete]
@@ -6,32 +7,46 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Show payload
+      # ---------- Build Flutter Web ----------
+      - name: Set up Java (for Flutter)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build Flutter web
+        run: flutter build web --release
+
+      # ---------- Stage build into public/ ----------
+      - name: Prepare public folder
         run: |
-          echo "Job:      ${{ github.event.client_payload.jobId }}"
-          echo "Version:  ${{ github.event.client_payload.version }}"
-          echo "Manifest: ${{ github.event.client_payload.payloadHttpUrl }}"
+          rm -rf public
+          mkdir -p public
+          cp -R build/web/* public/
 
-      - name: Prepare latest folder
-        run: mkdir -p public/forge/latest
+      # (Optional) keep any Forge payload/viewer assets
+      # - name: Copy Forge viewer/payload (if you have them)
+      #   run: cp -R viewer/* public/ || true
 
-      - name: Download manifest.json
-        run: |
-          curl -L -o public/forge/latest/manifest.json "${{ github.event.client_payload.payloadHttpUrl }}"
-          echo "Downloaded manifest:"
-          cat public/forge/latest/manifest.json
-
-      - name: Verify viewer exists
-        run: test -f public/forge/viewer.html
-
+      # ---------- Deploy to Firebase Hosting (live) ----------
       - name: Deploy to Firebase Hosting (live)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: "${{ secrets.GITHUB_TOKEN }}"
-          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}"
-          projectId: "${{ secrets.PROJECT_ID }}"
+          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT_ONEMANENGINE }}"
+          projectId: onemanengine-9c23b
           channelId: live
+          entryPoint: .
