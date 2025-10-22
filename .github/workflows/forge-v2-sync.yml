@@ -1,23 +1,22 @@
 name: Forge v2 Pipeline
 
 on:
-  # worker triggers this after a build
   repository_dispatch:
     types: [forge_v2_complete]
-  # let you run it by hand for testing
   workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Show payload
         run: |
-          echo "Job:      ${{ github.event.client_payload.jobId }}"
-          echo "Version:  ${{ github.event.client_payload.version }}"
+          echo "Job: ${{ github.event.client_payload.jobId }}"
+          echo "Version: ${{ github.event.client_payload.version }}"
           echo "Manifest: ${{ github.event.client_payload.payloadHttpUrl }}"
 
       - name: Prepare latest folder
@@ -27,24 +26,16 @@ jobs:
         run: |
           curl -L -o public/forge/latest/manifest.json "${{ github.event.client_payload.payloadHttpUrl }}"
           echo "Downloaded manifest:"
-          cat public/forge/latest/manifest.json || true
+          cat public/forge/latest/manifest.json
 
       - name: Verify viewer exists
         run: test -f public/forge/viewer.html
 
-      # 🔎 DEBUG: prove firebase.json is at repo root
-      - name: Debug firebase.json presence
-        run: |
-          echo "PWD = $(pwd)"
-          ls -la
-          echo "---- firebase.json ----"
-          cat firebase.json
-
       - name: Deploy to Firebase Hosting (live)
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: ${{ secrets.PROJECT_ID }}
+          repoToken: "${{ secrets.GITHUB_TOKEN }}"
+          firebaseServiceAccount: "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}"
+          projectId: "${{ secrets.PROJECT_ID }}"
           channelId: live
-          entryPoint: .
+          entryPoint: "."
