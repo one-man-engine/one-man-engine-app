@@ -31,13 +31,15 @@ jobs:
       - name: Verify viewer exists
         run: test -f public/forge/viewer.html
 
-      - name: Deploy to Firebase Hosting (live)
+     - name: Deploy to Firebase Hosting (live)
   uses: FirebaseExtended/action-hosting-deploy@v0
   with:
     repoToken: ${{ secrets.GITHUB_TOKEN }}
     firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
     projectId: ${{ secrets.PROJECT_ID }}
     channelId: live
-   
-          FIREBASE_CLI_EXPERIMENTS: webframeworks
-          NODE_VERSION: 20
+
+- name: Set environment variables
+  run: |
+    echo "FIREBASE_CLI_EXPERIMENTS=webframeworks" >> $GITHUB_ENV
+    echo "NODE_VERSION=20" >> $GITHUB_ENV
