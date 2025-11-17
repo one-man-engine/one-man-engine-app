@@ -32,13 +32,13 @@ jobs:
         run: test -f public/forge/viewer.html
 
       - name: Deploy to Firebase Hosting (live)
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          projectId: ${{ secrets.PROJECT_ID }}
-          channelId: live
-          entryPoint: .
+  uses: FirebaseExtended/action-hosting-deploy@v0
+  with:
+    repoToken: ${{ secrets.GITHUB_TOKEN }}
+    firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+    projectId: ${{ secrets.PROJECT_ID }}
+    channelId: live
+    entryPoint: .
         env:
           FIREBASE_CLI_EXPERIMENTS: webframeworks
           NODE_VERSION: 20
