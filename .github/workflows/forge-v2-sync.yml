@@ -39,7 +39,3 @@ jobs:
           projectId: ${{ secrets.PROJECT_ID }}
           channelId: live
    
-      - name: Set environment variables
-        run: |
-          echo "FIREBASE_CLI_EXPERIMENTS=webframeworks" >> $GITHUB_ENV
-          echo "NODE_VERSION=20" >> $GITHUB_ENV
