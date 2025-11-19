@@ -1,1 +1,256 @@
-<html><body><h1>Forge Viewer Active</h1></body></html>
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Forge Viewer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: #020617;
+        color: #e5e7eb;
+      }
+      .shell {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        padding: 16px;
+        gap: 12px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      h1 {
+        font-size: 20px;
+        letter-spacing: 0.1em;
+      }
+      .tag {
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(0, 1.2fr);
+        gap: 12px;
+        margin-top: 12px;
+      }
+      .panel {
+        background: rgba(15, 23, 42, 0.96);
+        border-radius: 12px;
+        border: 1px solid rgba(51, 65, 85, 0.9);
+        padding: 10px 12px;
+      }
+      .panel h2 {
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        margin-bottom: 8px;
+        opacity: 0.8;
+      }
+      .meta-list {
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .meta-list dt {
+        font-weight: 600;
+        opacity: 0.85;
+      }
+      .meta-list dd {
+        margin: 0 0 6px;
+        opacity: 0.9;
+      }
+      .columns {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        gap: 8px;
+      }
+      .card {
+        background: rgba(15, 23, 42, 0.98);
+        border-radius: 10px;
+        border: 1px solid rgba(30, 64, 175, 0.7);
+        padding: 8px;
+        font-size: 13px;
+      }
+      .card h3 {
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+      .muted {
+        opacity: 0.7;
+        font-size: 12px;
+      }
+      .badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        border: 1px solid rgba(148, 163, 184, 0.7);
+        font-size: 11px;
+        margin-right: 4px;
+      }
+      .pill-row {
+        margin-top: 4px;
+      }
+      @media (max-width: 768px) {
+        .grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <h1>FORGE VIEWER</h1>
+        <span class="tag" id="build-kind-tag">Loading…</span>
+      </header>
+
+      <div class="grid">
+        <section class="panel">
+          <h2>Build Meta</h2>
+          <dl class="meta-list">
+            <dt>Job ID</dt>
+            <dd id="meta-jobId">-</dd>
+            <dt>Forge</dt>
+            <dd id="meta-door">-</dd>
+            <dt>Requested Message</dt>
+            <dd id="meta-message">-</dd>
+            <dt>Version</dt>
+            <dd id="meta-version">-</dd>
+            <dt>Created At</dt>
+            <dd id="meta-createdAt">-</dd>
+          </dl>
+        </section>
+
+        <section class="panel">
+          <h2>Theme</h2>
+          <div id="theme-preview" class="muted">
+            Waiting for manifest…
+          </div>
+        </section>
+      </div>
+
+      <section class="panel">
+        <h2>Video Forge</h2>
+        <div id="video-list" class="columns">
+          <div class="muted">No video assets attached to this build yet.</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Game Forge</h2>
+        <div id="game-list" class="columns">
+          <div class="muted">No game builds attached to this job yet.</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Comic Forge</h2>
+        <div id="comic-list" class="columns">
+          <div class="muted">No comic issues attached to this job yet.</div>
+        </div>
+      </section>
+    </div>
+
+    <script>
+      async function loadManifest() {
+        try {
+          const res = await fetch("/forge/latest/manifest.json", {
+            cache: "no-store",
+          });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const manifest = await res.json();
+          renderManifest(manifest);
+        } catch (err) {
+          console.error("loadManifest error:", err);
+          document.body.innerHTML =
+            "<div style='padding:16px;font-family:system-ui;color:#fecaca'>Failed to load manifest. Check Hosting and GitHub workflow.</div>";
+        }
+      }
+
+      function renderManifest(m) {
+        const build = m.build || {};
+        const door = build.builderDoor || "game";
+
+        document.getElementById("build-kind-tag").textContent =
+          (door.toUpperCase() || "UNKNOWN") + " FORGE BUILD";
+
+        document.getElementById("meta-jobId").textContent = m.jobId || "-";
+        document.getElementById("meta-door").textContent = door;
+        document.getElementById("meta-message").textContent =
+          build.requestedMessage || "(no prompt captured)";
+        document.getElementById("meta-version").textContent =
+          m.version || "-";
+        document.getElementById("meta-createdAt").textContent =
+          m.createdAt || "-";
+
+        const themeBox = document.getElementById("theme-preview");
+        const theme = m.theme || {};
+        themeBox.innerHTML = `
+          <div>Primary: <span class="badge">${theme.primary || "-"}</span></div>
+          <div>Accent: <span class="badge">${theme.accent || "-"}</span></div>
+          <div class="pill-row muted" style="margin-top:6px">
+            Pages from vault: ${
+              Array.isArray(m.pages) ? m.pages.length : 0
+            }
+          </div>
+        `;
+
+        renderSimpleList(
+          m.videoForge && m.videoForge.clips,
+          "video-list",
+          "clip"
+        );
+        renderSimpleList(
+          m.gameForge && m.gameForge.builds,
+          "game-list",
+          "build"
+        );
+        renderSimpleList(
+          m.comicForge && m.comicForge.issues,
+          "comic-list",
+          "issue"
+        );
+      }
+
+      function renderSimpleList(items, containerId, label) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = "";
+
+        if (!items || !items.length) {
+          const empty = document.createElement("div");
+          empty.className = "muted";
+          empty.textContent =
+            "No " + label + "s attached to this build yet.";
+          container.appendChild(empty);
+          return;
+        }
+
+        for (const item of items) {
+          const card = document.createElement("div");
+          card.className = "card";
+
+          const title = document.createElement("h3");
+          title.textContent = item.title || `${label} ${item.id || ""}`;
+
+          const meta = document.createElement("div");
+          meta.className = "muted";
+          meta.textContent = item.url || "(no URL yet)";
+
+          card.appendChild(title);
+          card.appendChild(meta);
+          container.appendChild(card);
+        }
+      }
+
+      loadManifest();
+    </script>
+  </body>
+</html>
